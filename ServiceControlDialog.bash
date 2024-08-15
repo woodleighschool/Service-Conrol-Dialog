@@ -14,14 +14,14 @@ JSONFile=$(mktemp -u /var/tmp/dialogJSONFile.XXX)
 commandFile=$(mktemp -u /var/tmp/dialogCommandFile.XXX)
 
 loggedInUser=$(stat -f%Su /dev/console)
-loggedInUserID=$(id -u ${loggedInUser})
+loggedInUserID=$(id -u "${loggedInUser}")
 
 ##
 # Functions
 ##
 
 function dialogUpdate() {
-	echo "$1" >>"$commandFile"
+	echo "$1" >>"${commandFile}"
 }
 
 # https://github.com/dan-snelson/Setup-Your-Mac/blob/465074f8f5eff793270534ed2e9d4e6c96b00ab9/Setup-Your-Mac-via-Dialog.bash#L1765-L1772
@@ -33,101 +33,50 @@ function get_json_value() {
 }
 
 function cleanup() {
-	rm -f "$JSONFile"
-	rm -f "$commandFile"
+	rm -f "${JSONFile}"
+	rm -f "${commandFile}"
 }
 
 function manage_services() {
 	# Map start|stop to bootout|bootstrap
-	local action
-	if [[ $1 == "start" ]]; then
-		action="bootstrap"
-	else
-		action="bootout"
-	fi
+	local action=$([[ $1 == "start" ]] && echo "bootstrap" || echo "bootout")
+	echo "action: ${action} ${2}"
 
-	echo "action: $action $2"
-
-	# Define arrays for service plists
-	# jamf
-	local jamf_system_plists=(
-		"/Library/LaunchDaemons/com.jamf.management.daemon.plist"
-		"/Library/LaunchDaemons/com.jamfsoftware.task.1.plist"
-	)
-
-	local jamf_gui_plists=(
-		"/Library/LaunchAgents/com.jamf.management.agent.plist"
-	)
-
-	# sophos
-	local sophos_system_plists=(
-		"/Library/LaunchDaemons/com.sophos.common.servicemanager.plist"
-		"/Library/LaunchDaemons/com.sophos.sophoscbr.plist"
-	)
-
-	local sophos_gui_plists=(
-		"/Library/LaunchAgents/com.sophos.user.agent.plist"
-	)
-
-	local sophos_services=(
-		"com.sophos.webd.ne"
-		"com.sophos.webd"
-		"com.sophos.cryptoguard"
-		"com.sophos.scan"
-		"com.sophos.devicecontrol"
-		"com.sophos.evmon"
-		"com.sophos.mcs"
-		"com.sophos.livequery"
-		"com.sophos.shs"
-		"com.sophos.notification"
-		"com.sophos.configuration"
-		"com.sophos.updater"
-		"com.sophos.cleand"
-	)
-
-	# linewize connect
-	local connect_system_plists=(
-		"/Library/LaunchDaemons/fz-system-service.plist"
-	)
-
-	local connect_gui_plists=(
-		"/Library/LaunchAgents/com.familyzone.filterclient.agent.plist"
-	)
-
-	# Select the appropriate arrays based on the service
-	local system_plists=()
-	local gui_plists=()
-	if [[ $2 == "jamf" ]]; then
-		system_plists=("${jamf_system_plists[@]}")
-		gui_plists=("${jamf_gui_plists[@]}")
-	elif [[ $2 == "sophos" ]]; then
-		system_plists=("${sophos_system_plists[@]}")
-		gui_plists=("${sophos_gui_plists[@]}")
-	elif [[ $2 == "connect" ]]; then
-		system_plists=("${connect_system_plists[@]}")
-		gui_plists=("${connect_gui_plists[@]}")
-	fi
+	case $2 in
+	jamf)
+		system_plists=("/Library/LaunchDaemons/com.jamf.management.daemon.plist" "/Library/LaunchDaemons/com.jamfsoftware.task.1.plist")
+		gui_plists=("/Library/LaunchAgents/com.jamf.management.agent.plist")
+		;;
+	sophos)
+		system_plists=("/Library/LaunchDaemons/com.sophos.common.servicemanager.plist" "/Library/LaunchDaemons/com.sophos.sophoscbr.plist")
+		gui_plists=("/Library/LaunchAgents/com.sophos.user.agent.plist")
+		sophos_services=("com.sophos.webd.ne" "com.sophos.webd" "com.sophos.cryptoguard" "com.sophos.scan" "com.sophos.devicecontrol" "com.sophos.evmon" "com.sophos.mcs" "com.sophos.livequery" "com.sophos.shs" "com.sophos.notification" "com.sophos.configuration" "com.sophos.updater" "com.sophos.cleand")
+		;;
+	connect)
+		system_plists=("/Library/LaunchDaemons/fz-system-service.plist")
+		gui_plists=("/Library/LaunchAgents/com.familyzone.filterclient.agent.plist")
+		;;
+	esac
 
 	# Perform action for system plists
-	for plist in "${system_plists[@]}"; do
-		launchctl "$action" system "$plist"
+	for sys_service in "${system_plists[@]}"; do
+		launchctl "${action}" system "${sys_service}"
 	done
 
 	# Perform action for gui plists
-	for plist in "${gui_plists[@]}"; do
-		launchctl "$action" gui/${loggedInUserID} "$plist"
+	for user_service in "${gui_plists[@]}"; do
+		launchctl "${action}" "gui/${loggedInUserID}" "${user_service}"
 	done
 
+	# Additional actions for Sophos and Connect services
 	if [[ $2 == "sophos" && "${action}" == "bootout" ]]; then
-		# Perform action for Sophos services
 		for service in "${sophos_services[@]}"; do
-			launchctl "$action" system/"$service"
+			launchctl "${action}" system/"${service}"
 		done
 	fi
 
-	if [[ $2 == "connect" && "${action}" == "bootout" ]]; then
-		launchctl asuser "${loggedInUserID}" killall JavaAppLauncher &>/dev/null
-	fi
+	[[ $2 == "connect" && "${action}" == "bootout" ]] && launchctl asuser "${loggedInUserID}" killall JavaAppLauncher
+
 	sleep 3
 }
 
@@ -161,9 +110,6 @@ if [[ ! "${loggedInUser}" =~ ^(woodmin|tokenadmin)$ ]]; then
       "required": true
     }
   ],
-  "blurscreen": "false",
-  "ontop": "false",
-  "moveable": "true",
   "quitkey": ".",
   "height": "250",
   "width": "625"
@@ -201,16 +147,16 @@ fi
 # Display Service Control Dialog
 ##
 
-# Probe plist's too determine whether app is installed
+# Probe plist's to determine whether app is installed
 [[ -f "/Library/LaunchAgents/com.sophos.user.agent.plist" ]] && disableSophos="false"
 [[ -f "/Library/LaunchAgents/com.jamf.management.agent.plist" ]] && disableJamf="false"
 [[ -f "/Library/LaunchAgents/com.familyzone.filterclient.agent.plist" ]] && disableConnect="false"
 
 while true; do
 	# Check if the service is running and set the 'checked' switch
-	sophosRunning=$(pgrep -f "SophosAntiVirus" &>/dev/null && echo "true" || echo "false")
-	jamfRunning=$(pgrep -f "JamfDaemon" &>/dev/null && echo "true" || echo "false")
-	connectRunning=$(pgrep -f '/usr/bin/open -W /Applications/FamilyZone/MobileZoneAgent/bin/Connect.app' &>/dev/null && echo "true" || echo "false")
+	sophosRunning=$(ps aux | grep "SophosAntiVirus" | grep -v "grep" &>/dev/null && echo "true" || echo "false")
+	jamfRunning=$(ps aux | grep "JamfDaemon" | grep -v "grep" &>/dev/null && echo "true" || echo "false")
+	connectRunning=$(ps aux | grep '/usr/bin/open -W /Applications/FamilyZone/MobileZoneAgent/bin/Connect.app' | grep -v "grep" &>/dev/null && echo "true" || echo "false")
 
 	# JSON for the dialog
 	dialogJSON='
@@ -226,27 +172,25 @@ while true; do
       "label": "Sophos",
       "checked": "'"${sophosRunning}"'",
       "disabled": "'"${disableSophos:-true}"'",
-      "icon": "https://raw.githubusercontent.com/woodleighschool/Service-Control-Dialog/main/Icons/Sophos.png"
+      "icon": "https://r2-d2.woodleigh.vic.edu.au/Icons/Sophos.png"
     },
     {
       "label": "Jamf",
       "checked": "'"${jamfRunning}"'",
       "disabled": "'"${disableJamf:-true}"'",
-      "icon": "https://raw.githubusercontent.com/woodleighschool/Service-Control-Dialog/main/Icons/Jamf.png"
+      "icon": "https://r2-d2.woodleigh.vic.edu.au/Icons/Jamf.png"
     },
     {
       "label": "Linewize Connect",
       "checked": "'"${connectRunning}"'",
       "disabled": "'"${disableConnect:-true}"'",
-      "icon": "https://raw.githubusercontent.com/woodleighschool/Service-Control-Dialog/main/Icons/LinewizeConnect.png"
+      "icon": "https://r2-d2.woodleigh.vic.edu.au/Icons/LinewizeConnect.png"
     }
   ],
   "checkboxstyle": {
     "style": "switch",
     "size": "large"
   },
-  "blurscreen": "false",
-  "ontop": "false",
   "moveable": "true",
   "quitkey": ".",
   "height": "400",
